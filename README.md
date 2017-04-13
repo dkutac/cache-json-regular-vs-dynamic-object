@@ -1,4 +1,4 @@
-#Cache JSON two way biding between regular and dynamic objects
+# Cache JSON two way biding between regular and dynamic objects
 ==========================
 
 This project has been developed for one of partners during a workshop where they needed to bind 'regular' Cache objects (registered, persistent classes)
