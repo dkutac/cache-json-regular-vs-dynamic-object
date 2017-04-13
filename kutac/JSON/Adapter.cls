@@ -148,18 +148,18 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 			} else {
 				// ordinary array
 				if tPropDefType.ClassType="datatype" {
-					do %code.WriteLine("	set tArr=[],sArr=.."_tProp.Name)				
+					do %code.WriteLine("	set tArr={},sArr=.."_tProp.Name)				
 					do %code.WriteLine("	s key="""" for  {")
 					do %code.WriteLine("		s sArrMember=sArr.GetNext(.key) q:key=""""")
-					do %code.WriteLine("		d tArr.%Push(sArrMember)")
+					do %code.WriteLine("		d tArr.%Set(key,sArrMember)")
 					do %code.WriteLine("	}")
 					do %code.WriteLine("	set tModel."_tProp.Name_"=tArr")
 				} else {
 					// object
-					do %code.WriteLine("	set tArr=[],sArr=.."_tProp.Name)
+					do %code.WriteLine("	set tArr={},sArr=.."_tProp.Name)
 					do %code.WriteLine("	set key="""" for {")
 					do %code.WriteLine("		set sArrMember=sArr.GetNext(.key) q:key=""""")
-					do %code.WriteLine("		do tArr.%Push(sArrMember.%Expose())")
+					do %code.WriteLine("		do tArr.%Set(key,sArrMember.%Expose())")
 					do %code.WriteLine("	}")
 					do %code.WriteLine("	set tModel."_tProp.Name_"=tArr")
 				}				
