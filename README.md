@@ -18,3 +18,7 @@ set x=##class(myregularclass).%Bind({}.%FromJSON(jsonstring),.sc)
 this is a relatively simple intrface, tested on a limited set of classes, but shall support literal attributes as well as reference attributes and collections as well as relatinships.
 
 Further, when binding to a persistent class, the adapter is using definition of an IdKey index (defautl or custom) to identify existing instance of a persistent class so it not only creates new instacne but mofifies existing instance when appropriate. 
+
+for more information, please see this [article] (https://community.intersystems.com/post/binding-regular-cache-object-dynamicobject-and-vice-versa).
+
+Dan Kutac
