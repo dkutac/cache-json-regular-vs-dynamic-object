@@ -1,7 +1,7 @@
 Class kutac.JSON.Adapter [ Abstract ]
 {
 
-Parameter VERSION = 0.6;
+Parameter VERSION = 0.7;
 
 /// bind a <class>%DynamicObject</class> to a given "regular" Cache class.
 /// a new instance of the Cache class is created, or existing instance is opened and its properties are set from the model
@@ -26,7 +26,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 				set tIdKey("name")=tIdx.Name,tIdKey("props")=tIdx.Properties	// get list of properties constructing ID
 				quit	
 			} 
-		}	
+		}
 		if $d(tIdKey) {
 			if tIdKey("props")="" {
 				set tObject=$$$NULLOREF
@@ -45,6 +45,8 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 				set:len=2 tObject=$classmethod(..%ClassName(1),tOpenMethod,pModel.%Get($p(tIdKey("props"),",",1)),pModel.%Get($p(tIdKey("props"),",",2)))
 				set:len=3 tObject=$classmethod(..%ClassName(1),tOpenMethod,pModel.%Get($p(tIdKey("props"),",",1)),pModel.%Get($p(tIdKey("props"),",",2)),pModel.%Get($p(tIdKey("props"),",",3)))
 				if len>3 $$$ThrowStatus($$$ERROR($$$NotImplemented))
+				// DK: v 0.7 - 2017-04-20, if no object instance found then create a new one
+				if tObject=$$$NULLOREF set tObject=..%New()
 			}
 		} else {
 		 	set tObject=..%New()
@@ -137,6 +139,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 	}
 	return tObject
 }
+
 /// expose a "regular" Cache object to <class>%DynamicObject</class> for further JSON operations 
 /// (most likely to serialize by calling %ToJSON() method)
 Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerator ]
@@ -226,4 +229,5 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 	do %code.WriteLine("	return tModel")
 	return $$$OK
 }
+
 }
