@@ -15,7 +15,8 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 	#dim tObject=$$$NULLOREF
 	try {
 		// find Extent index definition
-		set tCls=##class(%Dictionary.CompiledClass).%OpenId(..%ClassName(1))
+		set tCls=##class(%Dictionary.CompiledClass).%OpenId(..%ClassName(1),,.tSC)
+		$$$ThrowOnError(tSC)
 		#dim tIdx as %Dictionary.CompiledIndex
 		#dim key=""
 		#dim tIdKey
@@ -29,15 +30,21 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 		if $d(tIdKey) {
 			if tIdKey("props")="" {
 				set tObject=$$$NULLOREF
-				set:pModel.%IsDefined("_id") tObject=$classmethod(..%ClassName(1),"%OpenId",pModel.%Get("_id"))
-				set:tObject=$$$NULLOREF tObject=..%New()
+				if (pModel.%Get("_id") '= "") {
+					set tObject=$classmethod(..%ClassName(1),"%OpenId",pModel.%Get("_id"),,.tSC)
+					$$$ThrowOnError(tSC)
+				} else {
+					set tObject=..%New()
+				}
 			} else {
 				#dim tOpenMethod=tIdKey("name")_"Open"
 				#dim len=$l(tIdKey("props"),",")
+				
+				// TODO: convert to args... syntax to allow any number of idkey properties.
 				set:len=1 tObject=$classmethod(..%ClassName(1),tOpenMethod,pModel.%Get($p(tIdKey("props"),",",1)))
 				set:len=2 tObject=$classmethod(..%ClassName(1),tOpenMethod,pModel.%Get($p(tIdKey("props"),",",1)),pModel.%Get($p(tIdKey("props"),",",2)))
 				set:len=3 tObject=$classmethod(..%ClassName(1),tOpenMethod,pModel.%Get($p(tIdKey("props"),",",1)),pModel.%Get($p(tIdKey("props"),",",2)),pModel.%Get($p(tIdKey("props"),",",3)))
-				if len>3 throw $$$ERROR($$$GeneralError,"UNIMPLEMENTED")
+				if len>3 $$$ThrowStatus($$$ERROR($$$NotImplemented))
 			}
 		} else {
 		 	set tObject=..%New()
@@ -52,15 +59,28 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 			#dim tType=pModel.%GetTypeOf(tKey)
 			if tKey="_id" continue
 			// find true Cache data type
-			set tProp=##class(%Dictionary.CompiledProperty).%OpenId(..%ClassName(1)_"||"_tKey)
-			set tPropDefType=##class(%Dictionary.CompiledClass).%OpenId(tProp.Type)
+			set tProp=##class(%Dictionary.CompiledProperty).%OpenId(..%ClassName(1)_"||"_tKey,,.tSC)
+			$$$ThrowOnError(tSC)
+			set tPropDefType=##class(%Dictionary.CompiledClass).%OpenId(tProp.Type,,.tSC)
+			$$$ThrowOnError(tSC)
 			//w !,tKey,":",tType,":",tProp.Type
-			if tType="string" {
+			if (tType="string") || (tType="number") {
 				// literals
 				set $property(tObject,tKey)=$method(tObject,tKey_"DisplayToLogical",tValue)
 			} elseif tType="array" {
-				// is it a Cache list or array?
-				if tProp.Collection="list" {
+				// is it a Cache list?
+				if tProp.Collection="array" {
+					if tProp.RuntimeType="%Library.RelationshipObject" {
+						// relationship = special case of array of objects
+						do $method($property(tObject,tKey),"Clear")
+						kill aKey,aValue
+						set aIterator=tValue.%GetIterator()
+						while aIterator.%GetNext(.aKey,.aValue) {
+							do $method($property(tObject,tKey),"Insert",$classmethod(tProp.Type,"%Bind",aValue,.pSC))
+							$$$ThrowOnError(pSC)
+						}
+					}
+				} elseif tProp.Collection="list" {
 					if tPropDefType.ClassType="datatype" {
 						do $method($property(tObject,tKey),"Clear")
 						kill aKey,aValue
@@ -74,18 +94,15 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 						kill aKey,aValue
 						set aIterator=tValue.%GetIterator()
 						while aIterator.%GetNext(.aKey,.aValue) {
-							do $method($property(tObject,tKey),"SetAt",$classmethod(tProp.Type,"%Bind",aValue,.pSC),aKey)
+							do $method($property(tObject,tKey),"Insert",$classmethod(tProp.Type,"%Bind",aValue,.pSC))
+							$$$ThrowOnError(pSC)
 						}
 					}
-				} elseif tProp.Collection="array" {
+				}
+			} elseif tType="object" {
+				if tProp.Collection="array" {
 					if tProp.RuntimeType="%Library.RelationshipObject" {
-						// relationship = special case of array of objects
-						do $method($property(tObject,tKey),"Clear")
-						kill aKey,aValue
-						set aIterator=tValue.%GetIterator()
-						while aIterator.%GetNext(.aKey,.aValue) {
-							do $method($property(tObject,tKey),"Insert",$classmethod(tProp.Type,"%Bind",aValue,.pSC))
-						}
+						// nope
 					} else {
 						// ordinary array
 						if tPropDefType.ClassType="datatype" {
@@ -93,7 +110,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 							kill aKey,aValue
 							set aIterator=tValue.%GetIterator()
 							while aIterator.%GetNext(.aKey,.aValue) {
-								do $method($property(tObject,tKey),"SetAt",aKey,aValue)
+								do $method($property(tObject,tKey),"SetAt",aValue,aKey)
 							}
 						} else {
 							// object
@@ -101,24 +118,25 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 							kill aKey,aValue
 							set aIterator=tValue.%GetIterator()
 							while aIterator.%GetNext(.aKey,.aValue) {
+								s %type = tProp.Type
 								do $method($property(tObject,tKey),"SetAt",$classmethod(tProp.Type,"%Bind",aValue,.pSC),aKey)
+								$$$ThrowOnError(pSC)
 							}
 						}
 					}
+				} else {
+					// object
+					set $property(tObject,tKey)=$classmethod(tProp.Type,"%Bind",tValue)
 				}
-			} elseif tType="object" {
-				set $property(tObject,tKey)=$classmethod(tProp.Type,"%Bind",tValue)
 			} else {
-				throw $$$ERROR($$$GeneralError,"UNIMPLEMENTED")
+				$$$ThrowStatus($$$ERROR($$$NotImplemented))
 			}
 		}
 	} catch (e) {
-		w !,"ERROR:" b
 		set pSC=e.AsStatus()
 	}
 	return tObject
 }
-
 /// expose a "regular" Cache object to <class>%DynamicObject</class> for further JSON operations 
 /// (most likely to serialize by calling %ToJSON() method)
 Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerator ]
@@ -148,18 +166,18 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 			} else {
 				// ordinary array
 				if tPropDefType.ClassType="datatype" {
-					do %code.WriteLine("	set tArr=[],sArr=.."_tProp.Name)				
+					do %code.WriteLine("	set tArr={},sArr=.."_tProp.Name)				
 					do %code.WriteLine("	s key="""" for  {")
 					do %code.WriteLine("		s sArrMember=sArr.GetNext(.key) q:key=""""")
-					do %code.WriteLine("		d tArr.%Push(sArrMember)")
+					do %code.WriteLine("		d tArr.%Set(key,sArrMember)")
 					do %code.WriteLine("	}")
 					do %code.WriteLine("	set tModel."_tProp.Name_"=tArr")
 				} else {
 					// object
-					do %code.WriteLine("	set tArr=[],sArr=.."_tProp.Name)
+					do %code.WriteLine("	set tArr={},sArr=.."_tProp.Name)
 					do %code.WriteLine("	set key="""" for {")
 					do %code.WriteLine("		set sArrMember=sArr.GetNext(.key) q:key=""""")
-					do %code.WriteLine("		do tArr.%Push(sArrMember.%Expose())")
+					do %code.WriteLine("		do tArr.%Set(key,sArrMember.%Expose())")
 					do %code.WriteLine("	}")
 					do %code.WriteLine("	set tModel."_tProp.Name_"=tArr")
 				}				
@@ -208,5 +226,4 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 	do %code.WriteLine("	return tModel")
 	return $$$OK
 }
-
 }
