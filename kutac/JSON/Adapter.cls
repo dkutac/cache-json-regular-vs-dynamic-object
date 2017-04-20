@@ -1,7 +1,14 @@
+/// this class is a simple implementation of binding between 'regular' Cache classes and dynamic objects.</p>
+/// How it works: <br/>
+/// use %Bind() method to convert dynamic object to a regular (persistent, registered, serial) Cache class<br/>
+/// use %Expose() method to convert regular Cache class to a dynamic object<p/>
+/// Collections implementation notes:<br/>
+/// Cache lists are exposed as JSON arrays - using [] notation<br/>
+/// Cache arrays are exposed as JSON objects - using {} notation - with first key equal to a key identifying Cache array elements, the second key equal to aCache array node value
 Class kutac.JSON.Adapter [ Abstract ]
 {
 
-Parameter VERSION = 0.7;
+Parameter VERSION = 0.8;
 
 /// bind a <class>%DynamicObject</class> to a given "regular" Cache class.
 /// a new instance of the Cache class is created, or existing instance is opened and its properties are set from the model
@@ -59,18 +66,20 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 		#dim aKey,aValue
 		while tIterator.%GetNext(.tKey,.tValue) {
 			#dim tType=pModel.%GetTypeOf(tKey)
+			//w !,tKey,":",tType
 			if tKey="_id" continue
 			// find true Cache data type
 			set tProp=##class(%Dictionary.CompiledProperty).%OpenId(..%ClassName(1)_"||"_tKey,,.tSC)
-			$$$ThrowOnError(tSC)
+			// DK v 0.8 - 2017-04-20, ignore unknown keys
+			if $$$ISERR(tSC) continue	// $$$ThrowOnError(tSC)
 			set tPropDefType=##class(%Dictionary.CompiledClass).%OpenId(tProp.Type,,.tSC)
 			$$$ThrowOnError(tSC)
-			//w !,tKey,":",tType,":",tProp.Type
+			//w ":",tProp.Type
 			if (tType="string") || (tType="number") {
 				// literals
 				set $property(tObject,tKey)=$method(tObject,tKey_"DisplayToLogical",tValue)
 			} elseif tType="array" {
-				// is it a Cache list?
+				// is it a Cache array?
 				if tProp.Collection="array" {
 					if tProp.RuntimeType="%Library.RelationshipObject" {
 						// relationship = special case of array of objects
@@ -82,6 +91,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 							$$$ThrowOnError(pSC)
 						}
 					}
+					// Cache list?
 				} elseif tProp.Collection="list" {
 					if tPropDefType.ClassType="datatype" {
 						do $method($property(tObject,tKey),"Clear")
