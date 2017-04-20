@@ -45,7 +45,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 				set:len=2 tObject=$classmethod(..%ClassName(1),tOpenMethod,pModel.%Get($p(tIdKey("props"),",",1)),pModel.%Get($p(tIdKey("props"),",",2)))
 				set:len=3 tObject=$classmethod(..%ClassName(1),tOpenMethod,pModel.%Get($p(tIdKey("props"),",",1)),pModel.%Get($p(tIdKey("props"),",",2)),pModel.%Get($p(tIdKey("props"),",",3)))
 				if len>3 $$$ThrowStatus($$$ERROR($$$NotImplemented))
-				// DK: v 0.7 - 2017-04-20, if no object instance found then create a new one
+				// DK: v 0.7 - 2017-04-20, if no object instance found then create a new one 
 				if tObject=$$$NULLOREF set tObject=..%New()
 			}
 		} else {
