@@ -4,11 +4,14 @@
 /// use %Expose() method to convert regular Cache class to a dynamic object<p/>
 /// Collections implementation notes:<br/>
 /// Cache lists are exposed as JSON arrays - using [] notation<br/>
-/// Cache arrays are exposed as JSON objects - using {} notation - with first key equal to a key identifying Cache array elements, the second key equal to aCache array node value
+/// Cache arrays are exposed as JSON objects - using {} notation - with first key equal to a key identifying Cache array elements, the second key equal to a Cache array node value<p/>
+/// Cache streams are IGNORED!<br/> The reason is following. JSON is typically payload of RESTful services.
+/// As such, streams are best handled as form/multi-part requests. Updates to streams shall thus be implemented
+/// as separate methods and targeted directly to 'regular' objects.
 Class kutac.JSON.Adapter [ Abstract ]
 {
 
-Parameter VERSION = 0.8;
+Parameter VERSION = 0.9;
 
 /// bind a <class>%DynamicObject</class> to a given "regular" Cache class.
 /// a new instance of the Cache class is created, or existing instance is opened and its properties are set from the model
@@ -74,7 +77,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 			if $$$ISERR(tSC) continue	// $$$ThrowOnError(tSC)
 			set tPropDefType=##class(%Dictionary.CompiledClass).%OpenId(tProp.Type,,.tSC)
 			$$$ThrowOnError(tSC)
-			//w ":",tProp.Type
+			//w ":",tProp.Type	
 			if (tType="string") || (tType="number") {
 				// literals
 				set $property(tObject,tKey)=$method(tObject,tKey_"DisplayToLogical",tValue)
@@ -114,7 +117,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 			} elseif tType="object" {
 				if tProp.Collection="array" {
 					if tProp.RuntimeType="%Library.RelationshipObject" {
-						// nope
+						// no action					
 					} else {
 						// ordinary array
 						if tPropDefType.ClassType="datatype" {
@@ -124,6 +127,8 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 							while aIterator.%GetNext(.aKey,.aValue) {
 								do $method($property(tObject,tKey),"SetAt",aValue,aKey)
 							}
+						} elseif tPropDefType.ClassType="stream" {
+							// ignore streams
 						} else {
 							// object
 							do $method($property(tObject,tKey),"Clear")
@@ -136,6 +141,8 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 							}
 						}
 					}
+				} elseif tPropDefType.ClassType="stream" {
+					// ignore streams					
 				} else {
 					// object
 					set $property(tObject,tKey)=$classmethod(tProp.Type,"%Bind",tValue)
@@ -152,7 +159,7 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 
 /// expose a "regular" Cache object to <class>%DynamicObject</class> for further JSON operations 
 /// (most likely to serialize by calling %ToJSON() method)
-Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerator ]
+Method %Expose(pSystem As %Boolean = 1, pIgnoreStreams As %Boolean = 1) As %DynamicObject [ CodeMode = objectgenerator ]
 {
 	do %code.WriteLine("	set tModel={}")
 	set tCls=##class(%Dictionary.CompiledClass).%OpenId(%class.Name)
@@ -185,6 +192,8 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 					do %code.WriteLine("		d tArr.%Set(key,sArrMember)")
 					do %code.WriteLine("	}")
 					do %code.WriteLine("	set tModel."_tProp.Name_"=tArr")
+				} elseif tPropDefType.ClassType="stream" {
+					// not supported
 				} else {
 					// object
 					do %code.WriteLine("	set tArr={},sArr=.."_tProp.Name)
@@ -202,6 +211,8 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 				do %code.WriteLine("		d tList.%Push(sList.GetAt(i))")
 				do %code.WriteLine("	}")
 				do %code.WriteLine("	set tModel."_tProp.Name_"=tList")
+			} elseif tPropDefType.ClassType="stream" {
+				// not supported
 			} else {
 				// object
 				do %code.WriteLine("	set tList=[],sList=.."_tProp.Name)				
@@ -213,6 +224,8 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 		} else { 
 			if tPropDefType.ClassType="datatype" {
 				do %code.WriteLine("	set tModel."_tProp.Name_"=.."_tProp.Name_"LogicalToDisplay(.."_tProp.Name_")")
+			} elseif tPropDefType.ClassType="stream" {
+				// not supported
 			} else {
 				// object
 				do %code.WriteLine("	set:.."_tProp.Name_"'=$$$NULLOREF tModel."_tProp.Name_"=.."_tProp.Name_".%Expose()")				
@@ -231,7 +244,7 @@ Method %Expose(pSystem As %Boolean) As %DynamicObject [ CodeMode = objectgenerat
 		}
 		if $d(tIdKey) {
 			if tIdKey("props")="" {
-				do %code.WriteLine("	set tModel.""_id""=..%Id()")
+				do %code.WriteLine("	set:pSystem tModel.""_id""=..%Id()")
 			}
 		}
 		
