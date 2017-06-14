@@ -11,7 +11,7 @@
 Class kutac.JSON.Adapter [ Abstract ]
 {
 
-Parameter VERSION = 0.9;
+Parameter VERSION = 0.91;
 
 /// bind a <class>%DynamicObject</class> to a given "regular" Cache class.
 /// a new instance of the Cache class is created, or existing instance is opened and its properties are set from the model
@@ -80,7 +80,13 @@ ClassMethod %Bind(pModel As %DynamicObject, Output pSC As %Status = {$$$OK}) As 
 			//w ":",tProp.Type	
 			if (tType="string") || (tType="number") {
 				// literals
-				set $property(tObject,tKey)=$method(tObject,tKey_"DisplayToLogical",tValue)
+				// DK 0.91: handle correctly I/O translations - use XML format preferably
+				try {
+					// there is no runnable method XSDToLogical generated for the regular object's literal properties
+					set $property(tObject,tKey)=$classmethod(tProp.Type,"XSDToLogical",tValue)
+				} catch (ie) {
+					set $property(tObject,tKey)=$method(tObject,tKey_"DisplayToLogical",tValue)					
+				}
 			} elseif tType="array" {
 				// is it a Cache array?
 				if tProp.Collection="array" {
@@ -172,7 +178,7 @@ Method %Expose(pSystem As %Boolean = 1, pIgnoreStreams As %Boolean = 1) As %Dyna
 		if tProp.Cardinality="one" continue
 		if tProp.Cardinality="parent" continue
 		set tPropDefType=##class(%Dictionary.CompiledClass).%OpenId(tProp.Type)	
-		if tPropDefType=$$$NULLOREF continue	// pri kompilaci jeste nemusi byt k dispozici
+		if tPropDefType=$$$NULLOREF continue	// may not be available at the compilation time
 		d %code.WriteLine("	// "_tProp.Name_": type = "_tProp.Type) 
 		if tProp.Collection="array" {
 			if tProp.RuntimeType="%Library.RelationshipObject" {
@@ -223,7 +229,12 @@ Method %Expose(pSystem As %Boolean = 1, pIgnoreStreams As %Boolean = 1) As %Dyna
 			}	
 		} else { 
 			if tPropDefType.ClassType="datatype" {
-				do %code.WriteLine("	set tModel."_tProp.Name_"=.."_tProp.Name_"LogicalToDisplay(.."_tProp.Name_")")
+				// DK 0.91: handle correctly I/O translations (use XML format where possible)
+				do %code.WriteLine("	try {")
+				do %code.WriteLine("		set tModel."_tProp.Name_"=##class("_tProp.Type_").LogicalToXSD(.."_tProp.Name_")")
+				do %code.WriteLine("	} catch (ie) {")
+				do %code.WriteLine("		set tModel."_tProp.Name_"=.."_tProp.Name_"LogicalToDisplay(.."_tProp.Name_")")
+				do %code.WriteLine("	}")
 			} elseif tPropDefType.ClassType="stream" {
 				// not supported
 			} else {
